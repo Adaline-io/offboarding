@@ -4,8 +4,8 @@ Per-client offboarding forms. One folder per client. Each becomes a URL the team
 
 ## Live URLs (after GitHub Pages enabled)
 
-- Team index: `https://[username].github.io/adaline-offboarding/`
-- Zahan Trading: `https://[username].github.io/adaline-offboarding/zahan-trading/`
+- Team index: `https://adaline-io.github.io/offboarding/`
+- Zahan Trading: `https://adaline-io.github.io/offboarding/zahan-trading/`
 
 ## Structure
 
