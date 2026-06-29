@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Adaline · Active Offboardings</title>
+<style>
+:root{--paper:#0b0b0b;--paper-2:#141414;--ink:#f5f1ea;--ink-soft:#d8d3cc;--muted:#807a72;--line:#262626;--acc:#e8a93f}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;padding:clamp(32px,6vw,80px) clamp(20px,5vw,48px)}
+.wrap{max-width:720px;margin:0 auto}
+.tag{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:12px}
+.tag::before{content:"";width:24px;height:1px;background:var(--muted)}
+h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(36px,6vw,52px);font-weight:800;letter-spacing:-.025em;line-height:1;margin-bottom:14px}
+h1 .ac{color:var(--acc)}
+.sub{color:var(--muted);font-size:14px;max-width:520px;margin-bottom:48px;line-height:1.55}
+.list{display:flex;flex-direction:column;gap:12px}
+.client{background:var(--paper-2);border:1px solid var(--line);border-radius:5px;padding:22px 24px;text-decoration:none;color:var(--ink);transition:border-color .15s,background .15s;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.client:hover{border-color:var(--muted);background:#1a1a1a}
+.client .l{min-width:0;flex:1}
+.client .name{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.01em;margin-bottom:4px}
+.client .meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em}
+.client .arr{display:inline-block;width:9px;height:9px;border:solid var(--ink-soft);border-width:0 2px 2px 0;transform:rotate(-45deg);flex-shrink:0;transition:border-color .15s}
+.client:hover .arr{border-color:var(--acc)}
+.foot{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em;line-height:1.7}
+.foot strong{color:var(--ink-soft);font-weight:700}
+.foot a{color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--muted)}
+.foot a:hover{color:var(--acc);border-color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tag">Internal · Team Index</div>
+  <h1>Active offboardings<span class="ac">.</span></h1>
+  <p class="sub">Per-client offboarding form. Each link is sent to the client at project close — they confirm delivery, share feedback, drop a testimonial, leave well-wishes. Submissions land in the Adaline Offboarding Sheet automatically.</p>
+
+  <div class="list">
+    <a class="client" href="./zahan-trading/">
+      <div class="l">
+        <div class="name">Zahan Trading</div>
+        <div class="meta">MUNDU KARA · Onam Design Pack · 3 designs · ₹35,400</div>
+      </div>
+      <span class="arr"></span>
+    </a>
+  </div>
+
+  <div class="foot">
+    <strong>Adding a new client?</strong><br/>
+    1. Ask Claude in chat to build the offboarding HTML with client name, project, total, delivery date, deliverables list<br/>
+    2. Claude builds it same-turn — drop the new folder (e.g. <code>new-client/index.html</code>) into this repo via Claude Code or github.com upload<br/>
+    3. Add a link block to this index<br/>
+    4. Done — new URL is <code>adaline-io.github.io/offboarding/new-client/</code><br/><br/>
+    <strong>Forms data:</strong> all submissions hit the Apps Script webhook → "Adaline Offboarding" Sheet → email to <a href="mailto:bettercall@myadaline.com">bettercall@myadaline.com</a> with PDF attached.
+  </div>
+</div>
+</body>
+</html>
