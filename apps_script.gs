@@ -3,11 +3,19 @@
  * -----------------------------------------------------------------
  * A dedicated script for the **Adaline Offboarding** Google Sheet.
  * One submission = ONE ROW, each field in its OWN labelled column —
- * readable, sortable, filterable. No raw JSON. Empty fields are
- * skipped. Same house style as the onboarding script.
+ * readable, sortable, filterable. No raw JSON. Empty fields skipped.
  *
- * It also archives a formatted Google Doc per submission (grouped by
- * the form's sections) and emails the PDF to bettercall@myadaline.com.
+ * GENERAL vs CUSTOM:
+ *   Every offboarding (any service/scope) shares the same general
+ *   sections — Debrief, Quote, Pass the Mic, What's Next, Sign-Off.
+ *   Those are FIXED columns below. The Delivery Receipt items are
+ *   CUSTOM per scope (designs, website, app, social, …), so they are
+ *   NOT hardcoded — they collapse into one stable "Deliverables
+ *   Confirmed" column. Anything else a form sends lands in "Other".
+ *   => one script serves every client and future work, no edits.
+ *
+ * It also archives a grouped Google Doc per submission and emails the
+ * PDF to bettercall@myadaline.com.
  *
  * DEPLOY (one-time, ~2 min, on the Offboarding sheet):
  *   1. Open the "Adaline Offboarding" Sheet -> Extensions -> Apps Script
@@ -22,64 +30,51 @@
  * Web app -> Version: "New version" -> Deploy (keeps the SAME /exec URL).
  */
 
-// Tab inside the Offboarding sheet that rows are written to.
-var SHEET_TAB     = 'Offboarding';
-var NOTIFY_EMAIL  = 'bettercall@myadaline.com';
-var DRIVE_FOLDER  = 'Adaline Offboarding Submissions';
+var SHEET_TAB    = 'Offboarding';
+var NOTIFY_EMAIL = 'bettercall@myadaline.com';
+var DRIVE_FOLDER = 'Adaline Offboarding Submissions';
 
 // Columns that always come first.
 var BASE_HEADERS = ['Submitted', 'Client', 'Project', 'Status', 'Doc'];
 
-// Fixed column order: [Column header, section id, field name].
-// Mirrors exactly what the offboarding form sends. Anything not listed
-// here is collected into a single trailing "Other" column.
-var SCHEMA = [
-  // 01 · Delivery Receipt
-  ['Design 1 — Kerala Doodle Art',  'delivery',    'recv_design_1'],
-  ['Design 2 — Kerala Mural Comics','delivery',    'recv_design_2'],
-  ['Design 3 — Pookalam Collage',   'delivery',    'recv_design_3'],
-  ['Source Files Received',         'delivery',    'recv_sources'],
-  ['Print + Web Exports Received',  'delivery',    'recv_exports'],
-  ['Outstanding Items',             'delivery',    'outstanding'],
+// The Delivery Receipt section: which field is the general "anything
+// outstanding" note (everything else in this section is a custom
+// deliverable and gets summarised, not given its own column).
+var DELIVERY_SECTION = 'delivery';
+var OUTSTANDING_FIELD = 'outstanding';
 
-  // 02 · The Debrief
-  ['NPS (0–10)',                    'debrief',     'nps_score'],
-  ['Star Rating (1–5)',             'debrief',     'star_rating'],
-  ['What We Got Right',             'debrief',     'got_right'],
-  ['What Could Be Better',          'debrief',     'could_better'],
-  ['Best Moment',                   'debrief',     'best_moment'],
-  ['Biggest Surprise',              'debrief',     'biggest_surprise'],
-
-  // 03 · The Quote
-  ['Testimonial',                   'testimonial', 'testimonial_quote'],
-  ['Attribution Name',              'testimonial', 'quote_name'],
-  ['Attribution Title',             'testimonial', 'quote_title'],
-  ['Perm: Website',                 'testimonial', 'perm_quote_web'],
-  ['Perm: Logo in Portfolio',       'testimonial', 'perm_logo'],
-  ['Perm: Case Study',              'testimonial', 'perm_case_study'],
-  ['Perm: Social Tag',              'testimonial', 'perm_social'],
-  ['Willing to Leave Public Review','testimonial', 'public_review'],
-
-  // 04 · Pass the Mic
-  ['Well-Wishes (private)',         'wishes',      'wish_message'],
-  ['Shoutout',                      'wishes',      'shoutout'],
-
-  // 05 · What's Next
-  ['Interested In',                 'next',        'interest'],
-
-  // 06 · Sign-Off
-  ['Sign-Off Confirmed',            'signoff',     'signoff_confirm']
+// GENERAL offboarding fields — identical across every client/scope.
+// [Section title (for the Doc), section id, [ [Column header, field] ... ]].
+var GENERAL = [
+  { id: 'debrief', title: '02 · The Debrief', fields: [
+    ['NPS (0–10)',        'nps_score'],
+    ['Star Rating (1–5)', 'star_rating'],
+    ['What We Got Right', 'got_right'],
+    ['What Could Be Better','could_better'],
+    ['Best Moment',       'best_moment'],
+    ['Biggest Surprise',  'biggest_surprise']
+  ]},
+  { id: 'testimonial', title: '03 · The Quote', fields: [
+    ['Testimonial',                   'testimonial_quote'],
+    ['Attribution Name',              'quote_name'],
+    ['Attribution Title',             'quote_title'],
+    ['Perm: Website',                 'perm_quote_web'],
+    ['Perm: Logo in Portfolio',       'perm_logo'],
+    ['Perm: Case Study',              'perm_case_study'],
+    ['Perm: Social Tag',              'perm_social'],
+    ['Willing to Leave Public Review','public_review']
+  ]},
+  { id: 'wishes', title: '04 · Pass the Mic', fields: [
+    ['Well-Wishes (private)', 'wish_message'],
+    ['Shoutout',              'shoutout']
+  ]},
+  { id: 'next', title: "05 · What's Next", fields: [
+    ['Interested In', 'interest']
+  ]},
+  { id: 'signoff', title: '06 · Sign-Off', fields: [
+    ['Sign-Off Confirmed', 'signoff_confirm']
+  ]}
 ];
-
-// Section titles for the archived Doc (grouped, in order).
-var SECTION_TITLES = {
-  delivery:    '01 · Delivery Receipt',
-  debrief:     '02 · The Debrief',
-  testimonial: '03 · The Quote',
-  wishes:      "04 · Pass the Mic",
-  next:        "05 · What's Next",
-  signoff:     '06 · Sign-Off'
-};
 
 // Health check — visiting the /exec URL in a browser returns this.
 function doGet() {
@@ -99,8 +94,8 @@ function doPost(e) {
     var prettyTime = Utilities.formatDate(ts, 'Asia/Kolkata', 'dd MMM yyyy, HH:mm');
     var fileName   = client + ' — offboarding — ' + stamp;
 
-    // Ordered [header, value] pairs for this submission.
-    var fields = collectFields(data);
+    var groups = buildGroups(data);       // grouped, for the Doc
+    var fields = flattenForSheet(data);    // [header, value], for the row
 
     // 1) Formatted Google Doc archive (grouped by section) -------------
     var doc  = DocumentApp.create(fileName);
@@ -109,18 +104,14 @@ function doPost(e) {
     body.appendParagraph('PROJECT WRAP' + (project ? ' — ' + project : '')).setHeading(DocumentApp.ParagraphHeading.SUBTITLE);
     body.appendParagraph('Submitted: ' + prettyTime);
 
-    var order = ['delivery', 'debrief', 'testimonial', 'wishes', 'next', 'signoff'];
-    for (var s = 0; s < order.length; s++) {
-      var secId = order[s];
-      var rows  = [];
-      for (var i = 0; i < SCHEMA.length; i++) {
-        if (SCHEMA[i][1] !== secId) continue;
-        var val = readField(data, SCHEMA[i][1], SCHEMA[i][2]);
-        if (val !== '') rows.push([SCHEMA[i][0], val]);
+    for (var g = 0; g < groups.length; g++) {
+      var rows = [];
+      for (var i = 0; i < groups[g].rows.length; i++) {
+        if (groups[g].rows[i][1] !== '') rows.push(groups[g].rows[i]);
       }
       if (!rows.length) continue;
       body.appendParagraph('');
-      body.appendParagraph(SECTION_TITLES[secId] || secId).setHeading(DocumentApp.ParagraphHeading.HEADING2);
+      body.appendParagraph(groups[g].title).setHeading(DocumentApp.ParagraphHeading.HEADING2);
       for (var r = 0; r < rows.length; r++) {
         var p = body.appendParagraph('');
         p.appendText(rows[r][0] + ': ').setBold(true);
@@ -140,7 +131,7 @@ function doPost(e) {
     if (!sheet) {
       sheet = ss.insertSheet(SHEET_TAB);
       var seed = BASE_HEADERS.slice();
-      for (var h = 0; h < SCHEMA.length; h++) seed.push(SCHEMA[h][0]);
+      for (var h = 0; h < fields.length; h++) seed.push(fields[h][0]);
       sheet.appendRow(seed);
       styleHeader(sheet);
       sheet.setFrozenRows(1);
@@ -162,7 +153,6 @@ function doPost(e) {
 
     appendRecord(sheet, orderedHeaders, record);
 
-    // Make the Doc cell a clickable link.
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var docCol  = headers.indexOf('Doc') + 1;
     if (docCol > 0) sheet.getRange(sheet.getLastRow(), docCol).setFormula('=HYPERLINK("' + doc.getUrl() + '","Open Doc")');
@@ -185,26 +175,92 @@ function doPost(e) {
   }
 }
 
-// ---- helpers --------------------------------------------------------------
+// ---- shaping --------------------------------------------------------------
 
-// Ordered [header, value] list using the fixed schema; anything sent but
-// not in the schema is folded into a single trailing "Other" column.
-function collectFields(data) {
-  var out = [];
-  for (var i = 0; i < SCHEMA.length; i++) {
-    out.push([SCHEMA[i][0], readField(data, SCHEMA[i][1], SCHEMA[i][2])]);
+// Ordered groups of [label, value] rows — Delivery (summarised), the
+// general sections, then any custom extras. Used for the Doc.
+function buildGroups(data) {
+  var groups = [];
+
+  groups.push({ title: '01 · Delivery Receipt', rows: [
+    ['Deliverables Confirmed', deliverablesSummary(data)],
+    ['Outstanding Items',      readField(data, DELIVERY_SECTION, OUTSTANDING_FIELD)]
+  ]});
+
+  for (var s = 0; s < GENERAL.length; s++) {
+    var rows = [];
+    for (var f = 0; f < GENERAL[s].fields.length; f++) {
+      rows.push([GENERAL[s].fields[f][0], readField(data, GENERAL[s].id, GENERAL[s].fields[f][1])]);
+    }
+    groups.push({ title: GENERAL[s].title, rows: rows });
   }
-  var used = {};
-  for (var s = 0; s < SCHEMA.length; s++) used[SCHEMA[s][1] + '.' + SCHEMA[s][2]] = true;
-  var extras = [];
-  eachField(data, function (sec, key, val) {
-    if (!used[sec + '.' + key]) extras.push(labelize(key) + ': ' + val);
-  });
-  out.push(['Other', extras.join(' | ')]);
+
+  var extras = otherEntries(data);
+  if (extras.length) groups.push({ title: 'Other Details', rows: extras });
+
+  return groups;
+}
+
+// Flat [header, value] list with a STABLE column set for the sheet:
+// fixed general columns + one "Deliverables Confirmed" + one "Other".
+function flattenForSheet(data) {
+  var out = [];
+  out.push(['Deliverables Confirmed', deliverablesSummary(data)]);
+  out.push(['Outstanding Items',      readField(data, DELIVERY_SECTION, OUTSTANDING_FIELD)]);
+  for (var s = 0; s < GENERAL.length; s++) {
+    for (var f = 0; f < GENERAL[s].fields.length; f++) {
+      out.push([GENERAL[s].fields[f][0], readField(data, GENERAL[s].id, GENERAL[s].fields[f][1])]);
+    }
+  }
+  var extras = otherEntries(data);
+  out.push(['Other', extras.map(function (e) { return e[0] + ': ' + e[1]; }).join(' | ')]);
   return out;
 }
 
-// Ensure every header exists (grows columns as needed) then append the row.
+// Custom deliverables -> a single readable list. If a checkbox carries a
+// meaningful value (the deliverable's name) we use it; if it's just a
+// generic "confirmed"/"yes", we fall back to the field name.
+function deliverablesSummary(data) {
+  var sd = data[DELIVERY_SECTION];
+  if (!sd || typeof sd !== 'object') return '';
+  var items = [];
+  for (var key in sd) {
+    if (!sd.hasOwnProperty(key) || key === OUTSTANDING_FIELD) continue;
+    var v = sd[key];
+    if (v === null || v === undefined) continue;
+    if (Object.prototype.toString.call(v) === '[object Array]') v = v.join(', ');
+    v = String(v);
+    if (v === '') continue;
+    var pv = pretty(v);
+    if (pv === '' || pv === 'Yes') items.push(titleize(stripDeliv(key)));
+    else items.push(pv);
+  }
+  return items.join(', ');
+}
+
+function stripDeliv(k) {
+  return String(k).replace(/^(recv|recd|received|deliver|delivery|item)_/, '');
+}
+
+// Every sent field that isn't general and isn't a delivery item.
+function otherEntries(data) {
+  var consumed = {};
+  for (var s = 0; s < GENERAL.length; s++) {
+    for (var f = 0; f < GENERAL[s].fields.length; f++) {
+      consumed[GENERAL[s].id + '.' + GENERAL[s].fields[f][1]] = true;
+    }
+  }
+  var entries = [];
+  eachField(data, function (sec, key, val) {
+    if (sec === DELIVERY_SECTION) return;          // summarised already
+    if (consumed[sec + '.' + key]) return;         // a general field
+    entries.push([titleize(key), val]);
+  });
+  return entries;
+}
+
+// ---- generic helpers ------------------------------------------------------
+
 function appendRecord(sheet, orderedHeaders, record) {
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var idx = {};
@@ -255,10 +311,8 @@ function readField(data, section, key) {
   return v === '' ? '' : pretty(v);
 }
 
-// Turn machine values into readable cells:
-//  - yes/true/confirmed/on -> "Yes"
-//  - snake_case tokens (incl. comma-joined lists) -> Title Case
-//  - free text is left untouched
+// Readable cells: yes/true/confirmed -> "Yes"; snake_case -> Title Case;
+// free text untouched.
 function pretty(v) {
   v = String(v);
   if (v === '') return '';
@@ -275,23 +329,6 @@ function pretty(v) {
 function titleize(s) {
   return String(s).replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').replace(/^\s|\s$/g, '')
     .replace(/\b\w/g, function (c) { return c.toUpperCase(); });
-}
-
-// Friendly labels for known offboarding field names; falls back to Title Case.
-function labelize(key) {
-  var map = {
-    recv_design_1: 'Design 1 — Kerala Doodle Art', recv_design_2: 'Design 2 — Kerala Mural Comics',
-    recv_design_3: 'Design 3 — Pookalam Collage', recv_sources: 'Source Files Received',
-    recv_exports: 'Print + Web Exports Received', outstanding: 'Outstanding Items',
-    nps_score: 'NPS (0–10)', star_rating: 'Star Rating (1–5)', got_right: 'What We Got Right',
-    could_better: 'What Could Be Better', best_moment: 'Best Moment', biggest_surprise: 'Biggest Surprise',
-    testimonial_quote: 'Testimonial', quote_name: 'Attribution Name', quote_title: 'Attribution Title',
-    perm_quote_web: 'Perm: Website', perm_logo: 'Perm: Logo in Portfolio', perm_case_study: 'Perm: Case Study',
-    perm_social: 'Perm: Social Tag', public_review: 'Willing to Leave Public Review',
-    wish_message: 'Well-Wishes (private)', shoutout: 'Shoutout', interest: 'Interested In',
-    signoff_confirm: 'Sign-Off Confirmed'
-  };
-  return map[key] || titleize(key);
 }
 
 function styleHeader(sheet) {
