@@ -37,7 +37,7 @@ adaline-offboarding/
 
 Every offboarding submission POSTs to:
 ```
-https://script.google.com/macros/s/AKfycbwK5-7kD0zWXEX16iCEQtpc012eALdKgU5jtmoCgYu_d_w-MtI5bOfM80NMP6vLR9Ue/exec
+https://script.google.com/macros/s/AKfycbxepNj4xbiIosao7P77kdswWhg1My4bYbiYVZyrMDZ1nriAO7XnFHdIdDT7o7gt2frEWw/exec
 ```
 
 (Different webhook from the onboarding repo — offboarding routes to its own "Adaline Offboarding" Sheet.)
